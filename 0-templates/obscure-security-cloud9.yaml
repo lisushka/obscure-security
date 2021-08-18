@@ -1,0 +1,76 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: This template deploys Cloud9 in a new VPC in the given region, for use in workshops.
+Resources:
+
+  # VPC infrastructure
+  Cloud9VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.127.0.0/24
+      EnableDnsHostnames: true
+      Tags:
+      - Key: name
+        Value: 'workshop-cloud9-vpc'
+
+  Cloud9Subnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.127.0.0/28
+      MapPublicIpOnLaunch: false
+      Tags: 
+      - Key: name
+        Value: 'workshop-cloud9-subnet'
+      VpcId: !Ref Cloud9VPC
+
+  # Networking and routing
+  Cloud9IGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: Name
+        Value: 'workshop-cloud9-igw'
+
+  AttachVPCToIGW:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref Cloud9IGW
+      VpcId: !Ref Cloud9VPC
+
+  Cloud9RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      Tags:
+        - Key: name
+          Value: 'workshop-cloud9-routetable'
+      VpcId: !Ref Cloud9VPC
+
+  RoutePublicTraffic:
+    Type: AWS::EC2::Route
+    DependsOn:
+      - AttachVPCToIGW
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref Cloud9IGW
+      RouteTableId: !Ref Cloud9RouteTable
+
+  AttachRouteTableToSubnet:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref Cloud9RouteTable
+      SubnetId: !Ref Cloud9Subnet
+
+  # Cloud9 instance
+  Cloud9Instance:
+    Type: AWS::Cloud9::EnvironmentEC2
+    DependsOn: AttachVPCToIGW
+    Properties:
+      AutomaticStopTimeMinutes: 120
+      Description: "Obscure Security on AWS EKS - Cloud9 IDE"
+      ImageId: amazonlinux-2-x86_64
+      InstanceType: t2.micro
+      Name: 'workshop-cloud9-instance'
+      SubnetId: !Ref Cloud9Subnet
+      Tags:
+        - Key: name
+          Value: 'workshop-cloud9-instance'
